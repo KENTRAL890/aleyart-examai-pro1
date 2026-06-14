@@ -1,9 +1,5 @@
 // ALEYART EXAMAI PRO — Prisma Schema
-// Database: PostgreSQL (Render/Supabase/Neon — free)
-//           MySQL 8 (local development)
-//
-// For LOCAL MySQL:  set DATABASE_URL="mysql://..." and change provider to "mysql"
-// For RENDER:       keep provider as "postgresql" (default)
+// PostgreSQL (Neon.tech)
 
 generator client {
   provider = "prisma-client-js"
@@ -12,6 +8,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
@@ -371,7 +368,7 @@ model MarkingScheme {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  examination Examination @relation(fields: [examinationId], references: [id], onDelete: Cascade)
+  examination Examination  @relation(fields: [examinationId], references: [id], onDelete: Cascade)
   items       SchemeItem[]
 
   @@map("marking_schemes")
