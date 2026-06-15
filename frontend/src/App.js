@@ -97,32 +97,79 @@ async function callClaudeAI(config) {
   const isJHS = JHS.includes(config.cls);
   const engJHS = config.subject === 'English Language' && isJHS;
 
-  const prompt = `You are an expert Ghanaian examination setter for ALEYART ACADEMY following NaCCA Standards-Based Curriculum (GES/SBC/CCP).
+  // Calculate marks per question for Section B
+  const secBTotalMarks = parseInt(config.totalMarks) - (parseInt(config.numMCQ) * parseInt(config.marksPerMCQ || 1));
+  const marksPerSubQ = Math.floor(secBTotalMarks / parseInt(config.numSubjective));
 
-Generate a complete examination. Return ONLY valid JSON (no markdown, no backticks).
+  const prompt = `You are a professional Ghanaian examination setter for ALEYART ACADEMY strictly following NaCCA Standards-Based Curriculum (GES/SBC/CCP).
 
-PARAMETERS:
-Class: ${config.cls} | Subject: ${config.subject} | Type: ${config.examType}
-Term: ${config.term} | Year: ${config.year} | Topics: ${config.topics}
-Difficulty: ${config.difficulty} | Duration: ${config.duration} min | Total Marks: ${config.totalMarks}
-Section A: ${config.numMCQ} MCQ (1 mark each) | Section B: ${config.numSubjective} subjective
+CRITICAL RULES — YOU MUST FOLLOW ALL OF THESE:
+1. NEVER write "model answer", "suggested answer", "reference answer", "sample answer", "possible answer", "accept any reasonable answer" or similar phrases ANYWHERE.
+2. EVERY question in BOTH Section A and Section B MUST have the EXACT correct answer that a student is expected to write.
+3. For Mathematics and Science: show EVERY step of working. Write the actual numbers, actual calculations, actual final answer.
+4. For English: write the exact grammatical rule, exact definition, exact words expected.
+5. For multiple choice: state which option (A/B/C/D) is correct AND write out the full correct option text.
+6. Sub-parts must each have their own complete exact answer.
+7. Return ONLY valid JSON — no markdown, no backticks, no explanation outside the JSON.
 
-${specialRule ? `CRITICAL RULE: ${specialRule}` : ''}
-${engJHS ? 'English JHS: include Grammar, Comprehension (The Beacon of Light), Summary, Composition, Literature sections.' : ''}
+EXAMINATION PARAMETERS:
+Class: ${config.cls}
+Subject: ${config.subject}
+Examination Type: ${config.examType}
+Term: ${config.term} | Academic Year: ${config.year}
+Topics: ${config.topics}
+Difficulty: ${config.difficulty}
+Duration: ${config.duration} minutes
+Total Marks: ${config.totalMarks}
 
-MANDATORY: Every question must have EXACT correct answers (never model/suggested answers).
-For maths/science: full step-by-step working required.
+SECTION A: Generate exactly ${config.numMCQ} Multiple Choice Questions
+- Each question worth ${config.marksPerMCQ || 1} mark
+- 4 options each (A, B, C, D)
+- State the EXACT correct option letter AND full text of that option
 
-JSON format:
+SECTION B: Generate exactly ${config.numSubjective} Subjective Questions  
+- Each question worth approximately ${marksPerSubQ} marks
+- Each question must have sub-parts (a), (b), (c) with individual marks
+- Marks per sub-part must add up to the question total
+- EXACT correct answer required for EVERY sub-part — not hints, not guidelines
+
+${specialRule ? `SPECIAL CURRICULUM RULE FOR ${config.subject.toUpperCase()}: ${specialRule}` : ''}
+${engJHS ? `ENGLISH LANGUAGE JHS STRUCTURE:
+- Section A (40 marks): Grammar and Objective questions
+- Section B: Comprehension passage from "The Beacon of Light" with questions
+- Include: Summary, Composition, Literature questions
+- Total must equal ${config.totalMarks} marks` : ''}
+
+Return this EXACT JSON structure:
 {
-  "title": "examination title",
+  "title": "ALEYART ACADEMY — ${config.subject} ${config.examType} — ${config.cls} — ${config.term} ${config.year}",
   "sectionA": [
-    {"num":1,"question":"question text","options":{"A":"...","B":"...","C":"...","D":"..."},"correct":"B","correctText":"full text of option B","marks":1,"topic":"topic"}
+    {
+      "num": 1,
+      "question": "full question text here",
+      "options": {"A": "option A text", "B": "option B text", "C": "option C text", "D": "option D text"},
+      "correct": "B",
+      "correctText": "exact full text of the correct option B",
+      "marks": ${config.marksPerMCQ || 1},
+      "topic": "topic name"
+    }
   ],
   "sectionB": [
-    {"num":1,"isCompulsory":true,"question":"question text","totalMarks":20,"subParts":[
-      {"part":"a","question":"sub-question","marks":5,"correctAnswer":"EXACT answer here","fullWorking":"Step 1: ...\\nStep 2: ...\\nAnswer: ..."}
-    ]}
+    {
+      "num": 1,
+      "isCompulsory": true,
+      "question": "full main question text",
+      "totalMarks": ${marksPerSubQ},
+      "subParts": [
+        {
+          "part": "a",
+          "question": "sub-question text",
+          "marks": 5,
+          "correctAnswer": "THE EXACT COMPLETE ANSWER — write it as if you are the student writing the perfect answer. No hints. No guidelines. The actual answer.",
+          "fullWorking": "For calculations: Step 1: [exact step]\\nStep 2: [exact step]\\nStep 3: [exact step]\\nFinal Answer: [exact result with units]"
+        }
+      ]
+    }
   ]
 }`;
 
@@ -485,7 +532,7 @@ function Dashboard({ user, setPage }) {
 // ─── EXAM GENERATOR ──────────────────────────────────────────────────────────
 function ExamGenerator() {
   const [step, setStep] = useState(1);
-  const [cfg, setCfg] = useState({ year:'2024/2025', term:'Term 1', cls:'Basic 7', subject:'Mathematics', examType:'End of Term Examination', difficulty:'Mixed', duration:'60', totalMarks:'100', numMCQ:20, numSubjective:5, topics:'Number Theory, Algebra, Geometry, Statistics' });
+  const [cfg, setCfg] = useState({ year:'2024/2025', term:'Term 1', cls:'Basic 7', subject:'Mathematics', examType:'End of Term Examination', difficulty:'Mixed', duration:'60', totalMarks:'100', numMCQ:20, marksPerMCQ:1, numSubjective:5, marksPerSubQ:10, topics:'Number Theory, Algebra, Geometry, Statistics' });
   const [gen, setGen] = useState(false);
   const [genStep, setGenStep] = useState('');
   const [exam, setExam] = useState(null);
@@ -559,10 +606,57 @@ function ExamGenerator() {
               <div className="form-group"><label className="form-label">Total Marks</label><input className="form-ctrl" type="number" value={cfg.totalMarks} onChange={e => up('totalMarks', e.target.value)} /></div>
               <div className="form-group"><label className="form-label">Difficulty</label><select className="form-ctrl" value={cfg.difficulty} onChange={e => up('difficulty', e.target.value)}>{DIFFICULTY.map(d => <option key={d}>{d}</option>)}</select></div>
             </div>
-            <div className="form-row">
-              <div className="form-group"><label className="form-label">Section A — MCQ Questions</label><input className="form-ctrl" type="number" min="5" max="60" value={cfg.numMCQ} onChange={e => up('numMCQ', parseInt(e.target.value))} /></div>
-              <div className="form-group"><label className="form-label">Section B — Subjective Questions</label><input className="form-ctrl" type="number" min="1" max="10" value={cfg.numSubjective} onChange={e => up('numSubjective', parseInt(e.target.value))} /></div>
+            {/* Section A */}
+            <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'var(--r)', padding:'14px 16px', marginBottom:12 }}>
+              <div style={{ fontWeight:600, fontSize:13, color:'#1e40af', marginBottom:10 }}>📝 Section A — Objective (Multiple Choice)</div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Number of Questions</label>
+                  <input className="form-ctrl" type="number" min="5" max="60" value={cfg.numMCQ} onChange={e => up('numMCQ', parseInt(e.target.value)||20)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Marks Per Question</label>
+                  <select className="form-ctrl" value={cfg.marksPerMCQ} onChange={e => up('marksPerMCQ', parseInt(e.target.value))}>
+                    <option value={1}>1 mark each</option>
+                    <option value={2}>2 marks each</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ fontSize:12, color:'#1e40af', fontWeight:500 }}>Section A Total: {(cfg.numMCQ||0) * (cfg.marksPerMCQ||1)} marks</div>
             </div>
+
+            {/* Section B */}
+            <div style={{ background:'#ecfdf5', border:'1px solid #6ee7b7', borderRadius:'var(--r)', padding:'14px 16px', marginBottom:12 }}>
+              <div style={{ fontWeight:600, fontSize:13, color:'#065f46', marginBottom:10 }}>📋 Section B — Subjective (Q1, 1a, 1b, 1c…)</div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Number of Questions</label>
+                  <input className="form-ctrl" type="number" min="1" max="10" value={cfg.numSubjective} onChange={e => up('numSubjective', parseInt(e.target.value)||5)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Marks Per Question</label>
+                  <input className="form-ctrl" type="number" min="5" max="50" value={cfg.marksPerSubQ} onChange={e => up('marksPerSubQ', parseInt(e.target.value)||10)} />
+                </div>
+              </div>
+              <div style={{ fontSize:12, color:'#065f46', fontWeight:500 }}>Section B Total: {(cfg.numSubjective||0) * (cfg.marksPerSubQ||10)} marks</div>
+            </div>
+
+            {/* Marks balance checker */}
+            {(() => {
+              const secA = (cfg.numMCQ||0) * (cfg.marksPerMCQ||1);
+              const secB = (cfg.numSubjective||0) * (cfg.marksPerSubQ||10);
+              const total = parseInt(cfg.totalMarks)||100;
+              const balanced = secA + secB === total;
+              return (
+                <div style={{ padding:'8px 12px', borderRadius:'var(--r-sm)', marginBottom:12, fontSize:12, background: balanced ? '#ecfdf5' : '#fef3c7', border:`1px solid ${balanced ? '#6ee7b7' : '#fcd34d'}`, color: balanced ? '#065f46' : '#92400e' }}>
+                  {balanced
+                    ? `✅ Marks balance: Section A (${secA}) + Section B (${secB}) = ${total} marks ✓`
+                    : `⚠️ Marks don't balance: Section A (${secA}) + Section B (${secB}) = ${secA+secB} but Total = ${total}. Adjust to match.`
+                  }
+                </div>
+              );
+            })()}
+
             <div className="form-group"><label className="form-label">Topics / Subtopics</label><textarea className="form-ctrl" rows={2} value={cfg.topics} onChange={e => up('topics', e.target.value)} placeholder="e.g. Number Theory, Algebra, Geometry, Statistics" /></div>
             <div style={{ display:'flex', justifyContent:'flex-end', marginTop:8 }}><button className="btn btn-primary btn-lg" onClick={() => setStep(2)}>Review & Generate →</button></div>
           </>
@@ -646,16 +740,30 @@ function ExamGenerator() {
           )}
           {exam?.sectionB?.length > 0 && (
             <>
-              <div className="ep-sec" style={{ marginTop:24 }}>Section B — Subjective Questions [{parseInt(cfg.totalMarks) - mcqCount} Marks]</div>
-              <p style={{ fontSize:11, fontStyle:'italic', marginBottom:10 }}>Answer Question 1 and any other required questions. Show all working clearly.</p>
+              <div className="ep-sec" style={{ marginTop:24 }}>Section B — Subjective Questions [{(cfg.numSubjective||0) * (cfg.marksPerSubQ||10)} Marks]</div>
+              <p style={{ fontSize:11, fontStyle:'italic', marginBottom:10 }}>Answer Question 1 (Compulsory) and any other {cfg.numSubjective - 1} question(s). Show all working clearly.</p>
               {exam.sectionB.map((q, i) => (
-                <div key={i} style={{ marginBottom:20 }}>
-                  <div className="ep-q"><strong>Question {q.num} [{q.totalMarks} marks]</strong>{q.isCompulsory && <strong> (COMPULSORY)</strong>}</div>
-                  <div style={{ margin:'4px 0 8px' }}>{q.question}</div>
+                <div key={i} style={{ marginBottom:24, pageBreakInside:'avoid' }}>
+                  {/* Q1, Q2 etc header */}
+                  <div style={{ fontWeight:'bold', fontSize:14, marginBottom:6, borderBottom:'1px solid #000', paddingBottom:4 }}>
+                    Question {q.num} &nbsp;&nbsp; [{q.totalMarks || cfg.marksPerSubQ} marks]
+                    {q.isCompulsory && <span style={{ fontWeight:'bold' }}> — COMPULSORY</span>}
+                  </div>
+                  {/* Main question text if any */}
+                  {q.question && <div style={{ fontSize:13, margin:'6px 0 10px', lineHeight:1.7 }}>{q.question}</div>}
+                  {/* Sub-parts: 1a, 1b, 1c */}
                   {q.subParts?.map((sp, j) => (
-                    <div key={j} className="ep-sub">
-                      <strong>({sp.part})</strong> {sp.question} <em style={{ fontSize:11, color:'#666' }}>[{sp.marks} marks]</em>
-                      {Array.from({ length: 4 }, (_, l) => <div key={l} className="ep-line" />)}
+                    <div key={j} style={{ marginBottom:14, paddingLeft:12 }}>
+                      <div style={{ fontWeight:'bold', fontSize:13 }}>
+                        {q.num}{sp.part}) &nbsp; {sp.question} &nbsp;
+                        <em style={{ fontSize:11, fontWeight:'normal', color:'#555' }}>[{sp.marks} marks]</em>
+                      </div>
+                      {/* Answer lines */}
+                      <div style={{ marginTop:6 }}>
+                        {Array.from({ length: sp.marks <= 3 ? 3 : sp.marks <= 6 ? 5 : 8 }, (_, l) => (
+                          <div key={l} style={{ borderBottom:'1px solid #aaa', minHeight:22, marginBottom:6 }} />
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -677,31 +785,59 @@ function ExamGenerator() {
           <div className="alert alert-success">✅ <div>This marking scheme contains <strong>EXACT CORRECT ANSWERS</strong> with full step-by-step working. Mark scripts immediately without preparing separate answers.</div></div>
           {exam?.sectionA?.length > 0 && (
             <>
-              <div className="card-title">Section A — Multiple Choice Answers</div>
-              <div className="ms-a-grid">{exam.sectionA.map((q, i) => (
-                <div key={i} className="ms-a-item">
-                  <span style={{ color:'var(--muted)', fontWeight:600, fontSize:11 }}>Q{q.num}</span>
-                  <span style={{ fontWeight:700, color:'var(--suc)', fontSize:15 }}>{q.correct}</span>
-                  <span style={{ fontSize:10, color:'var(--muted)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{q.correctText}</span>
-                </div>
-              ))}</div>
+              <div className="card-title">Section A — Multiple Choice Answers (Exact)</div>
+              <div style={{ marginBottom:8, fontSize:12, color:'var(--muted)' }}>Each correct answer is shown with the option letter AND the full correct text.</div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:6, marginBottom:16 }}>
+                {exam.sectionA.map((q, i) => (
+                  <div key={i} style={{ background:'#ecfdf5', border:'1px solid #6ee7b7', borderRadius:6, padding:'7px 12px', display:'flex', gap:10, alignItems:'flex-start' }}>
+                    <span style={{ color:'#64748b', fontWeight:600, fontSize:11, minWidth:24 }}>Q{q.num}</span>
+                    <span style={{ fontWeight:700, color:'#065f46', fontSize:15, minWidth:16 }}>{q.correct}</span>
+                    <span style={{ fontSize:12, color:'#065f46', lineHeight:1.4 }}>{q.correctText || (q.options && q.options[q.correct])}</span>
+                  </div>
+                ))}
+              </div>
             </>
           )}
           {exam?.sectionB?.length > 0 && (
             <>
-              <div className="card-title" style={{ marginTop:16 }}>Section B — Detailed Solutions</div>
+              <div className="card-title" style={{ marginTop:16 }}>Section B — Detailed Marking Guide (Exact Answers)</div>
               {exam.sectionB.map((q, i) => (
                 <div key={i} className="ms-b-item">
-                  <div style={{ fontWeight:600, fontSize:13, marginBottom:8 }}>Question {q.num}{q.isCompulsory && ' (Compulsory)'} [{q.totalMarks} marks]</div>
+                  {/* Q1 header */}
+                  <div style={{ fontWeight:700, fontSize:14, marginBottom:10, color:'#0f172a', borderBottom:'2px solid #6ee7b7', paddingBottom:6 }}>
+                    Question {q.num}{q.isCompulsory && ' — COMPULSORY'} &nbsp;[{q.totalMarks || cfg.marksPerSubQ} marks]
+                  </div>
+                  {/* Main question */}
+                  {q.question && (
+                    <div style={{ fontSize:12, color:'#475569', marginBottom:10, fontStyle:'italic' }}>{q.question}</div>
+                  )}
+                  {/* Sub-parts: 1a, 1b, 1c */}
                   {q.subParts?.map((sp, j) => (
-                    <div key={j} className="ms-b-sub">
-                      <div style={{ fontSize:11, fontWeight:700, color:'var(--suc)', marginBottom:4, textTransform:'uppercase', letterSpacing:'.05em' }}>Part ({sp.part}) — {sp.marks} mark{sp.marks !== 1 ? 's' : ''}</div>
-                      <div style={{ fontSize:13, color:'var(--suc)', fontWeight:500 }}>✓ {sp.correctAnswer}</div>
-                      {sp.fullWorking && <div style={{ fontSize:12, color:'var(--muted)', fontFamily:"'JetBrains Mono',monospace", whiteSpace:'pre-wrap', marginTop:4, lineHeight:1.6 }}>{sp.fullWorking}</div>}
+                    <div key={j} style={{ marginBottom:14, padding:'10px 14px', background:'white', border:'1px solid #6ee7b7', borderLeft:'4px solid #059669', borderRadius:6 }}>
+                      {/* Sub-part label: 1a, 1b, 1c */}
+                      <div style={{ fontWeight:700, fontSize:13, color:'#065f46', marginBottom:6 }}>
+                        {q.num}{sp.part}) &nbsp;
+                        <span style={{ fontWeight:400, color:'#334155' }}>{sp.question}</span>
+                        &nbsp;<span style={{ fontSize:11, color:'#64748b' }}>[{sp.marks} mark{sp.marks !== 1 ? 's' : ''}]</span>
+                      </div>
+                      {/* EXACT ANSWER */}
+                      <div style={{ background:'#ecfdf5', borderRadius:5, padding:'8px 12px', marginBottom:6 }}>
+                        <div style={{ fontSize:10, fontWeight:700, color:'#059669', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>✓ Exact Correct Answer:</div>
+                        <div style={{ fontSize:13, color:'#065f46', fontWeight:500, lineHeight:1.7 }}>{sp.correctAnswer}</div>
+                      </div>
+                      {/* Full working */}
+                      {sp.fullWorking && (
+                        <div style={{ background:'#f8fafc', borderRadius:5, padding:'8px 12px', marginBottom:6 }}>
+                          <div style={{ fontSize:10, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>Full Working / Steps:</div>
+                          <div style={{ fontSize:12, color:'#334155', fontFamily:"'JetBrains Mono',monospace", whiteSpace:'pre-wrap', lineHeight:1.8 }}>{sp.fullWorking}</div>
+                        </div>
+                      )}
                       <span className="ms-marks">{sp.marks} mark{sp.marks !== 1 ? 's' : ''}</span>
                     </div>
                   ))}
-                  <span className="ms-marks" style={{ marginTop:8 }}>Total: {q.totalMarks} marks</span>
+                  <div style={{ textAlign:'right', marginTop:4 }}>
+                    <span className="ms-marks">Question {q.num} Total: {q.totalMarks || cfg.marksPerSubQ} marks</span>
+                  </div>
                 </div>
               ))}
             </>

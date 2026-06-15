@@ -159,7 +159,7 @@ git clone https://github.com/aleyart-academy/examai-pro.git
 cd examai-pro/backend
 npm install
 
-#  2. Configure
+# 2. Configure
 cp .env.example .env
 nano .env
 
